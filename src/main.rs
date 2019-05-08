@@ -11,6 +11,7 @@ use piston::window::WindowSettings;
 use piston::event_loop::*;
 use piston::input::*;
 use opengl_graphics::{GlGraphics, OpenGL};
+use std::env;
 
 struct App {
     gl: GlGraphics,
@@ -43,7 +44,8 @@ impl App {
 
 fn main() -> std::io::Result<()> {
     println!("Hello, world!");
-    let mut file = File::open("/home/shubham/Downloads/Pong.ch8").unwrap();
+    println!("{:?}", env::current_dir()?);
+    let mut file = File::open("resources/PONG").unwrap();
 
     let mut buffer = Vec::new();
     let _size = file.read_to_end(&mut buffer);
@@ -51,29 +53,29 @@ fn main() -> std::io::Result<()> {
 
     let mut cpu = cpu::CPU::new(&buffer);
 
-//    let opengl = OpenGL::V2_1;
-//
-//    let mut window:Window = WindowSettings::new("rchip-8",[512 ,256])
-//        .opengl(opengl)
-//        .exit_on_esc(true)
-//        .build()
-//        .unwrap();
-//
+    let opengl = OpenGL::V3_2;
+
+    let mut window:Window = WindowSettings::new("rchip-8",[512 ,256])
+        .opengl(opengl)
+        .exit_on_esc(true)
+        .build()
+        .unwrap();
+    println!("{:?}", opengl);
 // //   let mut window = GlutinWindow::new()
-//    let mut app = App{
-//        gl:GlGraphics::new(opengl),
-//        rotation:0.0
-//    };
-//    let mut events = Events::new(EventSettings::new());
-//
-//    while let Some(e) = events.next(&mut window){
-//        if let Some(r) = e.render_args() {
-//            app.render(&r);
-//        }
-//        if let Some(u) = e.update_args() {
-//            app.update(&u);
-//        }
-//    }
+    let mut app = App{
+        gl:GlGraphics::new(opengl),
+        rotation:0.0
+    };
+    let mut events = Events::new(EventSettings::new());
+
+    while let Some(e) = events.next(&mut window){
+        if let Some(r) = e.render_args() {
+            cpu.render(&r);
+        }
+        if let Some(u) = e.update_args() {
+            cpu.update(&u);
+        }
+    }
 
 
 

@@ -3,11 +3,12 @@ extern crate graphics;
 extern crate glutin_window;
 extern crate opengl_graphics;
 
-use glutin_window::GlutinWindow as Window;
 use piston::window::WindowSettings;
 use piston::event_loop::*;
+
 use piston::input::*;
 use opengl_graphics::{GlGraphics, OpenGL};
+use multiarray::*;
 
 pub struct CPU<'a> {
     register: [u8; 16],
@@ -19,18 +20,20 @@ pub struct CPU<'a> {
     stack:[u16;16],
     gl: GlGraphics,
     data: &'a Vec<u8>,
+    grid: Array2D<i32>,
 }
 
 impl<'a> CPU<'a> {
 
     pub fn new(file: &std::vec::Vec<u8>) -> CPU {
-        let opengl = OpenGL::V2_1;
+        let opengl = OpenGL::V3_2;
+        let displayGrid = Array2D::new([64,32],0);
 
-        let mut window:Window = WindowSettings::new("rchip-8",[512 ,256])
-            .opengl(opengl)
-            .exit_on_esc(true)
-            .build()
-            .unwrap();
+//        let mut windowGl:Window = WindowSettings::new("rchip-8",[64 ,32])
+//            .opengl(opengl)
+//            .exit_on_esc(true)
+//            .build()
+//            .unwrap();
         CPU {
             register: [0; 16],
             instruction: 0,
@@ -40,8 +43,33 @@ impl<'a> CPU<'a> {
             stack_pointer:0,
             stack:[0;16],
             gl: GlGraphics::new(opengl),
-            data: file
+            data: file,
+            grid: displayGrid
         }
+    }
+
+    pub fn render(&mut self, args: &RenderArgs) {
+        use graphics::*;
+
+        const BLACK:[f32;4] = [0.0, 0.0, 0.0,1.0];
+        const WHITE:[f32;4] = [1.0,1.0,1.0,1.0];
+
+        let square = rectangle::square(0.0,0.0,8.0);
+
+        self.gl.draw(args.viewport(), |c,gl| {
+            clear(BLACK, gl) ;
+
+            for i in 0..64 {
+                for j in 0..32 {
+                    let transform = c.transform.trans(i as f64,j as f64);
+                    rectangle(WHITE, square, transform, gl);
+                }
+            }
+        });
+    }
+
+    pub fn update(&mut self, args: &UpdateArgs) {
+        self.parse_operation_code(self.data[self.pc]);
     }
 
     fn parse_operation_code(&mut self, opcode: u16) {
@@ -137,6 +165,8 @@ impl<'a> CPU<'a> {
                 }
             },
             0xa000 => {
+
+
                 self.instruction = opcode & 0x0fff;
             },
             0xb000 => {
@@ -147,7 +177,22 @@ impl<'a> CPU<'a> {
             },
             0xd000 => {
                 //display
-                println!("unsupported opcode");
+                let numberOfBytes = (opcode & 0x000f);
+                let mut x = opcode & 0x0f00;
+                let mut y = opcode & 0x00f0;
+                self.register[15] = 0;
+                for xi in 0..numberOfBytes {
+                    let mut yi = 0;
+                    while yi < 8 {
+                        let prev = self.grid[[(x+xi)%64,(y+yi)%32]];
+                        self.grid[[(x+xi)%64, (y+yi)%32]] = self.grid[[(x+xi)%64,(y+yi)%32]] ^ ((1<<(7-yi)) & self.instruction);
+                        if prev == 1 && self.grid[[(x+xi)%64,(y+yi)%32]] == 0 {
+                            self.register[15] = 1;
+                        }
+                        yi = yi+1;
+                    }
+                    self.instruction = self.instruction+1;
+                }
             },
             0xe000 => {
                 //keyboard

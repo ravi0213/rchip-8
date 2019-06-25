@@ -49,12 +49,20 @@ fn main() -> std::io::Result<()> {
     let mut file = File::open("resources/PONG").unwrap();
 
     let mut buffer = Vec::new();
+    for i in 0x0..0x200 {
+        buffer.push(0);
+    }
     let _size = file.read_to_end(&mut buffer);
     println!("{:?}",buffer);
+    println!("{:?}", _size);
+    let current_vec_size = buffer.len();
+    for i in current_vec_size..4096 {
+        buffer.push(0);
+    }
 
 
 //
-    let opengl = OpenGL::V3_2;
+    let opengl = OpenGL::V2_1;
 
     let mut window:Window = WindowSettings::new("rchip-8",[64 ,32])
         .opengl(opengl)
@@ -62,13 +70,8 @@ fn main() -> std::io::Result<()> {
         .build()
         .unwrap();
 
-    let mut cpu = cpu::CPU::new(&buffer, opengl);
-//    println!("{:?}", opengl);
-// //   let mut window = GlutinWindow::new()
-//    let mut app = App{
-//        gl:GlGraphics::new(opengl),
-//        rotation:0.0
-//    };
+    let mut cpu = cpu::CPU::new(buffer, opengl);
+
     let mut events = Events::new(EventSettings::new());
 
     while let Some(e) = events.next(&mut window){

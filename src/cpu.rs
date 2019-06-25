@@ -11,7 +11,7 @@ use opengl_graphics::{GlGraphics, OpenGL};
 use multiarray::*;
 use graphics::*;
 
-pub struct CPU<'a> {
+pub struct CPU {
     register: [u8; 16],
     instruction: u16,
     delay_timer:u8,
@@ -21,13 +21,13 @@ pub struct CPU<'a> {
     stack:[u16;16],
     opengl:OpenGL,
     gl: GlGraphics,
-    data: &'a Vec<u8>,
+    data: Vec<u8>,
     grid: Array2D<i32>,
 }
 
-impl<'a> CPU<'a> {
+impl CPU {
 
-    pub fn new(file: &std::vec::Vec<u8>, open_gl: OpenGL) -> CPU {
+    pub fn new(file: std::vec::Vec<u8>, open_gl: OpenGL) -> CPU {
 
         let display_grid = Array2D::new([64,32],0);
 
@@ -41,7 +41,7 @@ impl<'a> CPU<'a> {
             instruction: 0,
             delay_timer: 0,
             sound_timer: 0,
-            pc: 0,
+            pc: 0x200,
             stack_pointer:0,
             stack:[0;16],
             opengl: open_gl,
@@ -79,74 +79,100 @@ impl<'a> CPU<'a> {
     }
 
     fn parse_operation_code(&mut self, opcode: u16) {
-        println!("current opcode {}", opcode);
+        println!("current opcode {:#x?}", opcode);
         match opcode & 0xf000 {
+//            0x0000 => {
+//                println!("step 0");
+//                self.pc = (opcode & 0x0fff)*2;
+//            },
             0x0000 => {
-                println!("step 0");
-                self.pc = (opcode & 0x0fff)*2;
+                match opcode & 0x000f {
+                    0x0000 => {
+                        println!("step 0x00e0 clear screen");
+                        for i in 0..64 {
+                            for j in 0..32 {
+                                self.grid[[i,j]] = 0;
+                            }
+                        }
+                    },
+                    0x000e => {
+                        println!("step 0x00ee return subroutine");
+                        self.pc = self.stack[self.stack_pointer as usize];
+                        self.stack_pointer -= 1;
+                    },
+                    _ => {
+                        println!("unsupported op 0x0000");
+                    }
+                }
             },
             0x1000 => {
-                println!("step 1");
-                self.pc = (opcode & 0x0fff)*2;
+                println!("step 0x1nnn jump to nnn");
+                self.pc = (opcode & 0x0fff);
             },
             0x2000 => {
-                println!("step 2");
+                println!("step 0x2nnn call addr nnn");
                 self.stack_pointer += 1;
                 self.stack[self.stack_pointer as usize] = self.pc;
-                self.pc = (opcode & 0x0fff)*2;
+                self.pc = (opcode & 0x0fff);
             },
             0x3000 => {
-                println!("step 3");
+                println!("step 0x3xkk if Vx==kk then increment pc+=4");
                 if self.register[((opcode & 0x0f00) >> 8) as usize] == (opcode & 0x00ff) as u8 {
                     self.pc += 4;
+                } else {
+                    self.pc += 2;
                 }
             },
             0x4000 => {
-                println!("step 4");
+                println!("step 0x4xkk if Vx!=kk then increment pc+=4");
                 if self.register[((opcode & 0x0f00) >> 8) as usize] != (opcode & 0x00ff) as u8 {
                     self.pc += 4;
+                } else {
+                    self.pc += 2;
                 }
             },
             0x5000 => {
-                println!("step 5");
+                println!("step 0x5xy0 if Vx==Vy then increment pc+=4");
                 if self.register[((opcode & 0x0f00) >> 8) as usize] == self.register[((opcode & 0x00f0) >> 4) as usize] {
                     self.pc += 4;
+                } else {
+                    self.pc += 2;
                 }
             },
             0x6000 => {
-                println!("step 6");
+                println!("step 0x6xkk set Vx=kk");
                 self.register[((opcode & 0x0f00) >> 8) as usize] = (opcode & 0x00ff) as u8;
                 self.pc += 2;
             },
             0x7000 => {
-                println!("step 7");
+                println!("step 0x7xkk set Vx+=kk");
                 self.register[((opcode & 0x0f00) >> 8) as usize] += (opcode & 0x00ff) as u8;
                 self.pc += 2;
             },
             0x8000 => {
                 match opcode & 0x000f {
                     0x0000 => {
-                        println!("step 8 0");
+                        println!("step 0x8xy0 set Vx=Vy");
                         self.register[((opcode & 0x0f00) >> 8) as usize] = self.register[((opcode & 0x00f0) >> 4) as usize];
                         self.pc += 2;
                     },
                     0x0001 => {
-                        println!("step 8 1");
+                        println!("step 0x8xy1 set Vx = Vx OR Vy");
                         self.register[((opcode & 0x0f00) >> 8) as usize] |= self.register[((opcode & 0x00f0) >> 4) as usize];
                         self.pc += 2;
                     },
                     0x0002 => {
-                        println!("step 8 2");
+                        println!("step 0x8xy2 set Vx = Vx AND Vy");
                         self.register[((opcode & 0x0f00) >> 8) as usize] &= self.register[((opcode & 0x00f0) >> 4) as usize];
                         self.pc += 2;
                     },
                     0x0003 => {
-                        println!("step 8 3");
+                        println!("step 0x8xy3 set Vx = Vx XOR Vy");
                         self.register[((opcode & 0x0f00) >> 8) as usize] ^= self.register[((opcode & 0x00f0) >> 4) as usize];
                         self.pc += 2;
                     },
                     0x0004 => {
-                        println!("step 8 4");
+                        println!("step 0x8xy4 set Vx = Vx + Vy");
                         self.register[0x000f as usize] = if (self.register[((opcode & 0x0f00) >> 8) as usize] as u16 + self.register[((opcode & 0x00f0) >> 4) as usize] as u16) > 0x00ff {
                             0x0001
                         } else {
@@ -156,7 +182,7 @@ impl<'a> CPU<'a> {
                         self.pc += 2;
                     },
                     0x0005 => {
-                        println!("step 8 5");
+                        println!("step 0x8xy5 set Vx = Vx - Vy");
                         self.register[0x000f] = if self.register[((opcode & 0x0f00) >> 8) as usize] > self.register[((opcode & 0x00f0) >> 4) as usize] {
                             0x0001
                         } else {
@@ -166,13 +192,13 @@ impl<'a> CPU<'a> {
                         self.pc += 2;
                     },
                     0x0006 => {
-                        println!("step 8 6");
+                        println!("step 0x8xy6 set Vx = Vx >> 1");
                         self.register[0x000f] = self.register[((opcode & 0x0f00) >> 8) as usize] & 0x0001;
                         self.register[((opcode & 0x0f00) >> 8) as usize] /= 0x0002;
                         self.pc += 2;
                     },
                     0x0007 => {
-                        println!("step 8 7");
+                        println!("step 0x8xy7 set Vx = Vy - Vx");
                         self.register[0x000f] = if self.register[((opcode & 0x0f00) >> 8) as usize] < self.register[((opcode & 0x00f0) >> 4) as usize] {
                             0x0001
                         } else {
@@ -182,7 +208,7 @@ impl<'a> CPU<'a> {
                         self.pc += 2;
                     },
                     0x000e => {
-                        println!("step 8 e");
+                        println!("step 0x8xyE set Vx = Vx << 1");
                         self.register[0x000f] = self.register[((opcode & 0x0f00) >> 8) as usize] & ((0x0e00 >> 8) as u8);
                         self.register[(0x0f00 >> 8) as usize] *= 0x0002;
                         self.pc += 2;
@@ -196,6 +222,8 @@ impl<'a> CPU<'a> {
                 println!("step 9");
                 if self.register[(0x0f00 >> 8) as usize] != self.register[(0x00f0 >> 4) as usize] {
                     self.pc += 4;
+                } else {
+                    self.pc += 2;
                 }
             },
             0xa000 => {
@@ -237,6 +265,7 @@ impl<'a> CPU<'a> {
             0xe000 => {
                 //keyboard
                 println!("unsupported opcode");
+                self.pc += 2;
             },
             0xf000 => {
                 match opcode & 0x00ff {
@@ -248,6 +277,7 @@ impl<'a> CPU<'a> {
                     0x000a => {
                         //keyboard
                         println!("unsupported opcode");
+                        //self.pc += 2;
                     },
                     0x0015 => {
                         println!("step f 15");
@@ -266,16 +296,34 @@ impl<'a> CPU<'a> {
                     },
                     0x0029 => {
                         //display
-                        println!("unsupported opcode");
+                        println!("not tested opcode");
+                        self.instruction = self.register[((opcode & 0x0f00) >> 8) as usize] as u16;
+                        self.pc += 2;
                     },
                     0x0033 => {
                         println!("unsupported opcode");
+                        self.pc += 2;
                     },
                     0x0055 => {
-                        println!("unsupported opcode");
+                        let count = (opcode & 0x0f00) >> 8 as usize;
+//                        let mut i = 0;
+//                        for x in self.data.iter_mut() {
+//                            if i < self.instruction || i > self.instruction+count {
+//                                *x = self.register[(i-self.instruction) as usize];
+//                            }
+//                            i += 1;
+//                        }
+                        for i in 0..count {
+                            self.data[(self.instruction + i) as usize] = self.register[i as usize] ;
+                        }
+                        self.pc += 2;
                     },
                     0x0065 => {
-                        println!("unsupported opcode");
+                        let count = (opcode & 0x0f00) >> 8 as usize;
+                        for i in 0..count {
+                            self.register[i as usize] = self.data[(self.instruction + i) as usize];
+                        }
+                        self.pc += 2;
                     },
                     _ => {
                         println!("unsupported opcode");
